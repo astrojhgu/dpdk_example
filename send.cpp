@@ -12,6 +12,7 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include "config.h"
+#include "payload.h"
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 
@@ -115,6 +116,11 @@ static void lcore_main (rte_mempool *mbuf_pool)
 
     printf ("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id ());
 
+    rte_ether_hdr ether_hdr;
+    rte_ipv4_hdr ipv4_hdr;
+    rte_udp_hdr udp_hdr;
+    Payload payload;
+
     /* Main work of application loop. 8< */
     uint64_t cnt = 0;
     for (;;) {
@@ -133,10 +139,12 @@ static void lcore_main (rte_mempool *mbuf_pool)
         }
 
         for (int i = 0; i < BURST_SIZE; ++i) {
-            bufs[i]->pkt_len = PKT_LEN;
-            bufs[i]->data_len = PKT_LEN;
-            uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
-            *pcnt = cnt++;
+            bufs[i]->pkt_len = pkt_len();
+            bufs[i]->data_len = pkt_len();
+            //uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
+            
+            pack_data(bufs[i], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
+            payload.pkt_cnt+=1;
         }
 
 

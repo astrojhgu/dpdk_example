@@ -13,6 +13,8 @@
 #include <rte_ethdev.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
+#include "payload.h"
+
 using namespace std;
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -127,6 +129,11 @@ static __rte_noreturn void lcore_main (uint16_t port)
     uint64_t old_cnt = 0;
     std::time_t t0 = std::time (nullptr);
 
+    rte_ether_hdr* ether_hdr;
+    rte_ipv4_hdr* ipv4_hdr;
+    rte_udp_hdr* udp_hdr;
+    Payload* payload;
+
     uint64_t nbytes = 0;
     uint64_t ndropped = 0;
     uint64_t npkts = 0;
@@ -149,17 +156,29 @@ static __rte_noreturn void lcore_main (uint16_t port)
         // std::cout<<bufs[0]->pkt_len<<std::endl;
         for (int buf = 0; buf < nb_rx; buf++) {
 
-            if (bufs[buf]->pkt_len == PKT_LEN) {
+            if (bufs[buf]->pkt_len == pkt_len()) {
                 npkts += 1;
-                nbytes += PKT_LEN;
-                uint64_t *pcnt = rte_pktmbuf_mtod (bufs[buf], uint64_t *);
+                nbytes += pkt_len();
+                
+                unpack_data(bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
+                auto cnt=payload->pkt_cnt;
+                if (cnt==0){
+                    t0=std::time(nullptr);
+                    nbytes=0;
+                    npkts=0;
+                    ndropped=0;
+                }
+
+
                 // std::cout << *pcnt << std::endl;
-                if (i > 100 && old_cnt + 1 != *pcnt) {
-                    int64_t ndropped1 = *pcnt - old_cnt - 1;
-                    std::cerr << "dropped " << ndropped1 << " packets " << *pcnt << " " << old_cnt << std::endl;
+                if (cnt>0 && old_cnt + 1 != cnt) {
+                    int64_t ndropped1 = cnt - old_cnt - 1;
+                    std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt << std::endl;
                     ndropped += ndropped1;
                 }
-                if (*pcnt % 117187 == 0) {
+
+                
+                if (cnt % 117187 == 0) {
                     // std::cout << "." << std::endl;
                     // double secs=double(clock()-t0)/double(CLOCKS_PER_SEC);
                     double secs = std::difftime (time (nullptr), t0);
@@ -169,7 +188,7 @@ static __rte_noreturn void lcore_main (uint16_t port)
                               << " MSps, Dropped packet:" << ndropped << " dropping ratio < "
                               << (ndropped + 1.0) / npkts << std::endl;
                 }
-                old_cnt = *pcnt;
+                old_cnt = cnt;
             }
 
             rte_pktmbuf_free (bufs[buf]);
