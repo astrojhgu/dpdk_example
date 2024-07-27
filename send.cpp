@@ -106,16 +106,17 @@ static void lcore_main (rte_mempool *mbuf_pool)
      * for best performance.
      */
 
-    if (rte_eth_dev_socket_id (port) >= 0 && rte_eth_dev_socket_id (port) != (int)rte_socket_id ())
+    if (rte_eth_dev_socket_id (port) >= 0 && rte_eth_dev_socket_id (port) != (int)rte_socket_id ()) {
         printf ("WARNING, port %u is on remote NUMA node to "
                 "polling thread.\n\tPerformance will "
                 "not be optimal.\n",
                 port);
+    }
 
     printf ("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id ());
 
     /* Main work of application loop. 8< */
-    uint64_t cnt=0;
+    uint64_t cnt = 0;
     for (;;) {
         /*
          * Receive packets on a port and forward them on the paired
@@ -134,19 +135,17 @@ static void lcore_main (rte_mempool *mbuf_pool)
         for (int i = 0; i < BURST_SIZE; ++i) {
             bufs[i]->pkt_len = PKT_LEN;
             bufs[i]->data_len = PKT_LEN;
-            uint64_t* pcnt=rte_pktmbuf_mtod(bufs[i], uint64_t*);
-            *pcnt=cnt++;
+            uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
+            *pcnt = cnt++;
         }
-
-        
 
 
         /* Send burst of TX packets, to second port of pair. */
         // const uint16_t nb_tx = rte_eth_tx_burst (port, 0, bufs, BURST_SIZE);
         uint16_t nb_tx = 0;
         do {
-            nb_tx += rte_eth_tx_burst (port, 0, bufs + nb_tx, BURST_SIZE-nb_tx);
-        }while(nb_tx!=BURST_SIZE);
+            nb_tx += rte_eth_tx_burst (port, 0, bufs + nb_tx, BURST_SIZE - nb_tx);
+        } while (nb_tx != BURST_SIZE);
 
         /* Free any unsent packets. */
         if (unlikely (nb_tx < BURST_SIZE)) {
@@ -154,7 +153,7 @@ static void lcore_main (rte_mempool *mbuf_pool)
             for (buf = nb_tx; buf < BURST_SIZE; buf++)
                 rte_pktmbuf_free (bufs[buf]);
         }
-        //break;
+        // break;
     }
     /* >8 End of loop. */
 }
