@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <iomanip>
 #include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
@@ -129,10 +130,10 @@ static __rte_noreturn void lcore_main (uint16_t port)
     uint64_t old_cnt = 0;
     std::time_t t0 = std::time (nullptr);
 
-    rte_ether_hdr* ether_hdr;
-    rte_ipv4_hdr* ipv4_hdr;
-    rte_udp_hdr* udp_hdr;
-    Payload* payload;
+    rte_ether_hdr *ether_hdr;
+    rte_ipv4_hdr *ipv4_hdr;
+    rte_udp_hdr *udp_hdr;
+    Payload *payload;
 
     uint64_t nbytes = 0;
     uint64_t ndropped = 0;
@@ -148,6 +149,7 @@ static __rte_noreturn void lcore_main (uint16_t port)
         const uint16_t nb_rx = rte_eth_rx_burst (port, 0, bufs, BURST_SIZE);
 
         if (unlikely (nb_rx == 0)) continue;
+
         ++i;
 
         /* Send burst of TX packets, to second port of pair. */
@@ -156,39 +158,39 @@ static __rte_noreturn void lcore_main (uint16_t port)
         // std::cout<<bufs[0]->pkt_len<<std::endl;
         for (int buf = 0; buf < nb_rx; buf++) {
 
-            if (bufs[buf]->pkt_len == pkt_len()) {
-                npkts += 1;
-                nbytes += pkt_len();
-                
-                unpack_data(bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
-                auto cnt=payload->pkt_cnt;
-                if (cnt==0){
-                    t0=std::time(nullptr);
-                    nbytes=0;
-                    npkts=0;
-                    ndropped=0;
+            if (bufs[buf]->pkt_len == pkt_len ()) {
+                unpack_data (bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
+                auto cnt = payload->pkt_cnt;
+                if (cnt == 0) {
+                    t0 = std::time (nullptr);
+                    nbytes = 0;
+                    npkts = 0;
+                    ndropped = 0;
                 }
 
 
                 // std::cout << *pcnt << std::endl;
-                if (cnt>0 && old_cnt + 1 != cnt) {
+                if (cnt > 0 && npkts > 0 && old_cnt + 1 != cnt) {
                     int64_t ndropped1 = cnt - old_cnt - 1;
-                    std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt << std::endl;
+                    std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt
+                              << " " << npkts << std::endl;
                     ndropped += ndropped1;
                 }
 
-                
+
                 if (cnt % 117187 == 0) {
                     // std::cout << "." << std::endl;
                     // double secs=double(clock()-t0)/double(CLOCKS_PER_SEC);
                     double secs = std::difftime (time (nullptr), t0);
                     double Bps = nbytes / secs;
-                    std::cout << "t elapsed= " << secs << " sec, speed: " << Bps / 1e9
-                              << " GBps = " << Bps * 8 / 1e9 << " Gbps = " << Bps / 1e6 / 2
-                              << " MSps, Dropped packet:" << ndropped << " dropping ratio < "
-                              << (ndropped + 1.0) / npkts << std::endl;
+                    std::cout << std::setprecision (4) << "t elapsed= " << secs
+                              << " sec, speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
+                              << " Gbps = " << Bps / 1e6 / 2 << " MSps, Dropped packet:" << ndropped
+                              << " dropping ratio < " << (ndropped + 1.0) / npkts << std::endl;
                 }
                 old_cnt = cnt;
+                npkts += 1;
+                nbytes += pkt_len ();
             }
 
             rte_pktmbuf_free (bufs[buf]);
