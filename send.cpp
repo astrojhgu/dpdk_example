@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <cinttypes>
 #include <iostream>
+#include <iomanip>
+#include <ctime>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_cycles.h>
@@ -122,8 +124,10 @@ static void lcore_main (rte_mempool *mbuf_pool)
     Payload payload;
 
     /* Main work of application loop. 8< */
-    uint64_t cnt = 0;
-    for (;;) {
+    // uint64_t cnt = 0;
+    std::time_t t0 = std::time (nullptr);
+    uint64_t nbytes;
+    for (int cnt = 0;; ++cnt) {
         /*
          * Receive packets on a port and forward them on the paired
          * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
@@ -139,12 +143,12 @@ static void lcore_main (rte_mempool *mbuf_pool)
         }
 
         for (int i = 0; i < BURST_SIZE; ++i) {
-            bufs[i]->pkt_len = pkt_len();
-            bufs[i]->data_len = pkt_len();
-            //uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
-            
-            pack_data(bufs[i], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
-            payload.pkt_cnt+=1;
+            bufs[i]->pkt_len = pkt_len ();
+            bufs[i]->data_len = pkt_len ();
+            // uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
+
+            pack_data (bufs[i], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
+            payload.pkt_cnt += 1;
         }
 
 
@@ -155,11 +159,17 @@ static void lcore_main (rte_mempool *mbuf_pool)
             nb_tx += rte_eth_tx_burst (port, 0, bufs + nb_tx, BURST_SIZE - nb_tx);
         } while (nb_tx != BURST_SIZE);
 
+        nbytes += BURST_SIZE * pkt_len ();
+
         /* Free any unsent packets. */
-        if (unlikely (nb_tx < BURST_SIZE)) {
-            uint16_t buf;
-            for (buf = nb_tx; buf < BURST_SIZE; buf++)
-                rte_pktmbuf_free (bufs[buf]);
+        assert (nb_tx == BURST_SIZE);
+
+        if (cnt % 10000 == 0) {
+            double secs = std::difftime (time (nullptr), t0);
+            double Bps = nbytes / secs;
+            std::cout << std::setprecision (4) << "t elapsed= " << secs
+                      << " sec, TX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
+                      << " Gbps = " << Bps / 1e6 / 2 << " MSps" << std::endl;
         }
         // break;
     }

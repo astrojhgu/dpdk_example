@@ -184,7 +184,7 @@ static __rte_noreturn void lcore_main (uint16_t port)
                     double secs = std::difftime (time (nullptr), t0);
                     double Bps = nbytes / secs;
                     std::cout << std::setprecision (4) << "t elapsed= " << secs
-                              << " sec, speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
+                              << " sec, RX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
                               << " Gbps = " << Bps / 1e6 / 2 << " MSps, Dropped packet:" << ndropped
                               << " dropping ratio < " << (ndropped + 1.0) / npkts << std::endl;
                 }
