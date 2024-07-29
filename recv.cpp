@@ -110,9 +110,9 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
  */
 
 /* Basic forwarding application lcore. 8< */
-static __rte_noreturn void lcore_main (uint16_t port)
+static __rte_noreturn void lcore_main ()
 {
-
+    uint16_t port=0;
     /*
      * Check that the port is on the same NUMA node as the polling thread
      * for best performance.
@@ -233,15 +233,18 @@ int main (int argc, char *argv[])
     if (mbuf_pool == NULL) rte_exit (EXIT_FAILURE, "Cannot create mbuf pool\n");
 
     /* Initializing all ports. 8< */
-    portid = 0;
-    if (port_init (portid, mbuf_pool) != 0)
-        rte_exit (EXIT_FAILURE, "Cannot init port %d \n", portid);
+    RTE_ETH_FOREACH_DEV (portid)
+    {
+        if (port_init (portid, mbuf_pool) != 0)
+            rte_exit (EXIT_FAILURE, "Cannot init port %d \n", portid);
+    }
+
     /* >8 End of initializing all ports. */
 
     if (rte_lcore_count () > 1) printf ("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
     /* Call lcore_main on the main core only. Called on single lcore. 8< */
-    lcore_main (portid);
+    lcore_main ();
     /* >8 End of called on single lcore. */
 
     /* clean up the EAL */
