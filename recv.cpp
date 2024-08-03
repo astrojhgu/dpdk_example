@@ -172,8 +172,8 @@ static __rte_noreturn void lcore_main ()
                 // std::cout << *pcnt << std::endl;
                 if (cnt > 0 && npkts > 0 && old_cnt + 1 != cnt) {
                     int64_t ndropped1 = cnt - old_cnt - 1;
-                    std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt
-                              << " " << npkts << std::endl;
+                    //std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt
+                    //          << " " << npkts << std::endl;
                     ndropped += ndropped1;
                 }
 
