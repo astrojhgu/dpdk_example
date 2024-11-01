@@ -8,13 +8,13 @@ OPT=-O3 -g
 payload.o: payload.cpp payload.h
 	g++ -c $< -o $@ $(DPDK_INC) $(OPT)
 
-send.o: send.cpp
+send.o: send.cpp utils.h
 	g++ -c $< -o $@ $(DPDK_INC) $(OPT)
 
-send: send.o payload.o
+send: send.o payload.o 
 	g++ $^ -o $@ $(DPDK_LIB) $(OPT)
 
-recv.o: recv.cpp
+recv.o: recv.cpp utils.h
 	g++ -c $< -o $@ $(DPDK_INC) $(OPT)
 
 recv: recv.o payload.o

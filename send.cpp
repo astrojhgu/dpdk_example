@@ -45,8 +45,19 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
         return retval;
     }
 
-    if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE)
+    /*
+    if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE & RTE_ETH_TX_OFFLOAD_IPV4_CKSUM & RTE_ETH_TX_OFFLOAD_UDP_CKSUM)
+    {
+        port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE | RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_UDP_CKSUM;
+    }else{
+        rte_panic(" offload not supported");
+    }*/
+    if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE )
+    {
         port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
+    }else{
+        rte_panic(" offload not supported");
+    }   
 
     port_conf.rxmode.mtu = MTU;
 
@@ -118,10 +129,38 @@ static void lcore_main (rte_mempool *mbuf_pool)
 
     printf ("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id ());
 
+
+    
     rte_ether_hdr ether_hdr;
     rte_ipv4_hdr ipv4_hdr;
     rte_udp_hdr udp_hdr;
     Payload payload;
+
+    if(rte_eth_macaddr_get(port, &(ether_hdr.src_addr))){
+        std::cerr<<"failed to get src addr"<<std::endl;
+        exit(-1);
+    }
+
+    ether_hdr.dst_addr={0xec,0x0d,0x9a,0x43,0x2e,0x4d};
+    ether_hdr.ether_type=rte_cpu_to_be_16(0x0800);
+
+    ipv4_hdr.ihl=0x05;
+    ipv4_hdr.version = 0x04;               // IPV4
+    ipv4_hdr.type_of_service = 100;
+    ipv4_hdr.total_length = rte_cpu_to_be_16(static_cast<uint16_t>(ip_pkt_len()));       // size of IPV4 header and everything that follows
+    ipv4_hdr.packet_id = 0;
+    ipv4_hdr.fragment_offset = 0;
+    ipv4_hdr.time_to_live = IPDEFTTL;      // default 64
+    ipv4_hdr.next_proto_id = IPPROTO_UDP;  // UDP packet follows
+    ipv4_hdr.src_addr = rte_cpu_to_be_32((192<<24)+(168<<16)+(10<<8)+10);
+    ipv4_hdr.dst_addr = rte_cpu_to_be_32((192<<24)+(168<<16)+(10<<8)+11);
+    ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);             // Checksum will be offloaded to NIC; see below
+
+    udp_hdr.src_port=rte_cpu_to_be_16(3000);
+    udp_hdr.dst_port=rte_cpu_to_be_16(3001);
+    udp_hdr.dgram_len=rte_cpu_to_be_16(udp_pkt_len());
+    udp_hdr.dgram_cksum=0;
+
 
     /* Main work of application loop. 8< */
     // uint64_t cnt = 0;
@@ -143,8 +182,8 @@ static void lcore_main (rte_mempool *mbuf_pool)
         }
 
         for (int i = 0; i < BURST_SIZE; ++i) {
-            bufs[i]->pkt_len = pkt_len ();
-            bufs[i]->data_len = pkt_len ();
+            bufs[i]->pkt_len = ether_pkt_len ();
+            bufs[i]->data_len = ether_pkt_len ();
             // uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
 
             pack_data (bufs[i], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
@@ -159,7 +198,7 @@ static void lcore_main (rte_mempool *mbuf_pool)
             nb_tx += rte_eth_tx_burst (port, 0, bufs + nb_tx, BURST_SIZE - nb_tx);
         } while (nb_tx != BURST_SIZE);
 
-        nbytes += BURST_SIZE * pkt_len ();
+        nbytes += BURST_SIZE * ether_pkt_len ();
 
         /* Free any unsent packets. */
         assert (nb_tx == BURST_SIZE);

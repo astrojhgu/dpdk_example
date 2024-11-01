@@ -8,19 +8,32 @@
 #include "config.h"
 
 struct Payload{
-    uint64_t pkt_cnt;//8 8
-    int64_t base_id;//8 16
-    uint64_t port_id;//4 20
-    uint64_t _reserve;
-    int16_t data[N_PT_PER_FRAME];//8192 8216
+    uint64_t pkt_cnt=0;//8 8
+    int64_t base_id=0;//8 16
+    uint64_t port_id=0;//4 20
+    uint64_t _reserve=0;
+    int16_t data[N_PT_PER_FRAME]={};//8192 8216
 };
 
 
 void unpack_data (const rte_mbuf *buf, rte_ether_hdr **ether_hdr, rte_ipv4_hdr **ipv4_hdr, rte_udp_hdr **udp_hdr, Payload **payload);
 void pack_data (rte_mbuf *buf, rte_ether_hdr *ether_hdr, rte_ipv4_hdr *ipv4_hdr, rte_udp_hdr *udp_hdr, Payload *payload);
 
-static constexpr size_t pkt_len(){
-    return sizeof(rte_ether_hdr)+sizeof(rte_ipv4_hdr)+sizeof(rte_udp_hdr)+sizeof(Payload);
+
+static constexpr size_t payload_len(){
+    return sizeof(Payload);
+}
+
+static constexpr size_t udp_pkt_len(){
+    return sizeof(rte_udp_hdr)+payload_len();
+}
+
+static constexpr size_t ip_pkt_len(){
+    return sizeof(rte_ipv4_hdr)+udp_pkt_len();
+}
+
+static constexpr size_t ether_pkt_len(){
+    return sizeof(rte_ether_hdr)+ip_pkt_len();
 }
 
 #endif

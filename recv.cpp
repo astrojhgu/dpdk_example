@@ -15,6 +15,7 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include "payload.h"
+#include "utils.h"
 
 using namespace std;
 #define RX_RING_SIZE 1024
@@ -96,7 +97,7 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
             port, RTE_ETHER_ADDR_BYTES (&addr));
 
     /* Enable RX in promiscuous mode for the Ethernet device. */
-    retval = rte_eth_promiscuous_enable (port);
+    //retval = rte_eth_promiscuous_enable (port);
     /* End of setting RX port in promiscuous mode. */
     if (retval != 0) return retval;
 
@@ -158,7 +159,7 @@ static __rte_noreturn void lcore_main ()
         // std::cout<<bufs[0]->pkt_len<<std::endl;
         for (int buf = 0; buf < nb_rx; buf++) {
 
-            if (bufs[buf]->pkt_len == pkt_len ()) {
+            if (bufs[buf]->pkt_len == ether_pkt_len ()) {
                 unpack_data (bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
                 auto cnt = payload->pkt_cnt;
                 if (cnt == 0) {
@@ -186,11 +187,13 @@ static __rte_noreturn void lcore_main ()
                     std::cout << std::setprecision (4) << "t elapsed= " << secs
                               << " sec, RX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
                               << " Gbps = " << Bps / 1e6 / 2 << " MSps, Dropped packet:" << ndropped
-                              << " dropping ratio < " << (ndropped + 1.0) / npkts << std::endl;
+                              << " dropping ratio < " << (ndropped + 1.0) / npkts 
+                              << " "<<show_hdr(ipv4_hdr, udp_hdr)
+                              << std::endl;
                 }
                 old_cnt = cnt;
                 npkts += 1;
-                nbytes += pkt_len ();
+                nbytes += ether_pkt_len ();
             }
 
             rte_pktmbuf_free (bufs[buf]);
