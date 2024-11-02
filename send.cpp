@@ -34,18 +34,19 @@ struct SendCfg
     int16_t src_port;
     uint8_t dst_mac[6];
 
-    SendCfg(const YAML::Node& input){
-        auto dst_ip1=input["dst_ip"].as<std::vector<int32_t>>();
-        auto src_ip1=input["src_ip"].as<std::vector<int32_t>>();
-        for (int i=0;i<4;++i){
-            dst_ip[i]=dst_ip1[i];
-            src_ip[i]=src_ip1[i];
+    SendCfg (const YAML::Node &input)
+    {
+        auto dst_ip1 = input["dst_ip"].as<std::vector<int32_t>> ();
+        auto src_ip1 = input["src_ip"].as<std::vector<int32_t>> ();
+        for (int i = 0; i < 4; ++i) {
+            dst_ip[i] = dst_ip1[i];
+            src_ip[i] = src_ip1[i];
         }
-        dst_port=input["dst_port"].as<int16_t>();
-        src_port=input["src_port"].as<int16_t>();
-        auto dst_mac1=input["dst_mac"].as<std::vector<uint8_t>>();
-        for (int i=0;i<6;++i){
-            dst_mac[i]=dst_mac1[i];
+        dst_port = input["dst_port"].as<int16_t> ();
+        src_port = input["src_port"].as<int16_t> ();
+        auto dst_mac1 = input["dst_mac"].as<std::vector<uint8_t>> ();
+        for (int i = 0; i < 6; ++i) {
+            dst_mac[i] = dst_mac1[i];
         }
     }
 };
@@ -161,8 +162,8 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
     rte_udp_hdr udp_hdr;
     Payload payload;
 
-    for(int i=0;i<N_PT_PER_FRAME;++i){
-        payload.data[i]=i;
+    for (int i = 0; i < N_PT_PER_FRAME; ++i) {
+        payload.data[i] = i;
     }
 
     if (rte_eth_macaddr_get (port, &(ether_hdr.src_addr))) {
@@ -194,6 +195,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
     udp_hdr.dst_port = rte_cpu_to_be_16 (send_cfg.dst_port);
     udp_hdr.dgram_len = rte_cpu_to_be_16 (udp_pkt_len ());
     udp_hdr.dgram_cksum = 0;
+    udp_hdr.dgram_cksum = rte_ipv4_udptcp_cksum (&ipv4_hdr, &udp_hdr);
 
 
     /* Main work of application loop. 8< */
@@ -242,7 +244,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
             double Bps = nbytes / secs;
             std::cout << std::setprecision (4) << "t elapsed= " << secs
                       << " sec, TX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
-                      << " Gbps = " << Bps / 1e6 / 2 << " MSps " << payload_len()<<std::endl;
+                      << " Gbps = " << Bps / 1e6 / 2 << " MSps " << payload_len () << std::endl;
         }
         // break;
     }
@@ -278,11 +280,11 @@ int main (int argc, char *argv[])
         exit (-1);
     }
 
-    YAML::Node config = YAML::LoadFile(argv[1]);
-    
-    //std::cout<<"x="<<x[0]<<std::endl;
-    //SendCfg send_cfg{ { 192, 168, 10, 10 }, 3000, { 192, 168, 10, 11 }, 3001, { 0xec, 0x0d, 0x9a, 0x43, 0x2e, 0x4d } };
-    SendCfg send_cfg(config);
+    YAML::Node config = YAML::LoadFile (argv[1]);
+
+    // std::cout<<"x="<<x[0]<<std::endl;
+    // SendCfg send_cfg{ { 192, 168, 10, 10 }, 3000, { 192, 168, 10, 11 }, 3001, { 0xec, 0x0d, 0x9a, 0x43, 0x2e, 0x4d } };
+    SendCfg send_cfg (config);
 
     /* Check that there is an even number of ports to send/receive on. */
     nb_ports = rte_eth_dev_count_avail ();
