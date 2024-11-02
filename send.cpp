@@ -14,6 +14,9 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include "config.h"
+
+#include "yaml-cpp/yaml.h"
+
 #include "payload.h"
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -22,6 +25,30 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
+
+struct SendCfg
+{
+    int32_t dst_ip[4];
+    int16_t dst_port;
+    int32_t src_ip[4];
+    int16_t src_port;
+    uint8_t dst_mac[6];
+
+    SendCfg(const YAML::Node& input){
+        auto dst_ip1=input["dst_ip"].as<std::vector<int32_t>>();
+        auto src_ip1=input["src_ip"].as<std::vector<int32_t>>();
+        for (int i=0;i<4;++i){
+            dst_ip[i]=dst_ip1[i];
+            src_ip[i]=src_ip1[i];
+        }
+        dst_port=input["dst_port"].as<int16_t>();
+        src_port=input["src_port"].as<int16_t>();
+        auto dst_mac1=input["dst_mac"].as<std::vector<uint8_t>>();
+        for (int i=0;i<6;++i){
+            dst_mac[i]=dst_mac1[i];
+        }
+    }
+};
 
 /* Main functional part of port initialization. 8< */
 static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
@@ -52,12 +79,11 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
     }else{
         rte_panic(" offload not supported");
     }*/
-    if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE )
-    {
+    if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE) {
         port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
-    }else{
-        rte_panic(" offload not supported");
-    }   
+    } else {
+        rte_panic (" offload not supported");
+    }
 
     port_conf.rxmode.mtu = MTU;
 
@@ -111,7 +137,7 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
  */
 
 /* Basic forwarding application lcore. 8< */
-static void lcore_main (rte_mempool *mbuf_pool)
+static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
 {
     uint16_t port = 0;
 
@@ -130,36 +156,44 @@ static void lcore_main (rte_mempool *mbuf_pool)
     printf ("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id ());
 
 
-    
     rte_ether_hdr ether_hdr;
     rte_ipv4_hdr ipv4_hdr;
     rte_udp_hdr udp_hdr;
     Payload payload;
 
-    if(rte_eth_macaddr_get(port, &(ether_hdr.src_addr))){
-        std::cerr<<"failed to get src addr"<<std::endl;
-        exit(-1);
+    for(int i=0;i<N_PT_PER_FRAME;++i){
+        payload.data[i]=i;
     }
 
-    ether_hdr.dst_addr={0xec,0x0d,0x9a,0x43,0x2e,0x4d};
-    ether_hdr.ether_type=rte_cpu_to_be_16(0x0800);
+    if (rte_eth_macaddr_get (port, &(ether_hdr.src_addr))) {
+        std::cerr << "failed to get src addr" << std::endl;
+        exit (-1);
+    }
 
-    ipv4_hdr.ihl=0x05;
-    ipv4_hdr.version = 0x04;               // IPV4
+    ether_hdr.dst_addr = { send_cfg.dst_mac[0], send_cfg.dst_mac[1], send_cfg.dst_mac[2],
+                           send_cfg.dst_mac[3], send_cfg.dst_mac[4], send_cfg.dst_mac[5] };
+    ether_hdr.ether_type = rte_cpu_to_be_16 (0x0800);
+
+    ipv4_hdr.ihl = 0x05;
+    ipv4_hdr.version = 0x04; // IPV4
     ipv4_hdr.type_of_service = 100;
-    ipv4_hdr.total_length = rte_cpu_to_be_16(static_cast<uint16_t>(ip_pkt_len()));       // size of IPV4 header and everything that follows
+    ipv4_hdr.total_length =
+    rte_cpu_to_be_16 (static_cast<uint16_t> (ip_pkt_len ())); // size of IPV4 header and everything that follows
     ipv4_hdr.packet_id = 0;
     ipv4_hdr.fragment_offset = 0;
-    ipv4_hdr.time_to_live = IPDEFTTL;      // default 64
-    ipv4_hdr.next_proto_id = IPPROTO_UDP;  // UDP packet follows
-    ipv4_hdr.src_addr = rte_cpu_to_be_32((192<<24)+(168<<16)+(10<<8)+10);
-    ipv4_hdr.dst_addr = rte_cpu_to_be_32((192<<24)+(168<<16)+(10<<8)+11);
-    ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);             // Checksum will be offloaded to NIC; see below
+    ipv4_hdr.time_to_live = IPDEFTTL; // default 64
+    ipv4_hdr.next_proto_id = IPPROTO_UDP; // UDP packet follows
+    ipv4_hdr.src_addr = rte_cpu_to_be_32 ((send_cfg.src_ip[0] << 24) + (send_cfg.src_ip[1] << 16) +
+                                          (send_cfg.src_ip[2] << 8) + send_cfg.src_ip[3]);
+    ipv4_hdr.dst_addr = rte_cpu_to_be_32 ((send_cfg.dst_ip[0] << 24) + (send_cfg.dst_ip[1] << 16) +
+                                          (send_cfg.dst_ip[2] << 8) + send_cfg.dst_ip[3]);
 
-    udp_hdr.src_port=rte_cpu_to_be_16(3000);
-    udp_hdr.dst_port=rte_cpu_to_be_16(3001);
-    udp_hdr.dgram_len=rte_cpu_to_be_16(udp_pkt_len());
-    udp_hdr.dgram_cksum=0;
+    ipv4_hdr.hdr_checksum = rte_ipv4_cksum (&ipv4_hdr); // Checksum will be offloaded to NIC; see below
+
+    udp_hdr.src_port = rte_cpu_to_be_16 (send_cfg.src_port);
+    udp_hdr.dst_port = rte_cpu_to_be_16 (send_cfg.dst_port);
+    udp_hdr.dgram_len = rte_cpu_to_be_16 (udp_pkt_len ());
+    udp_hdr.dgram_cksum = 0;
 
 
     /* Main work of application loop. 8< */
@@ -208,7 +242,7 @@ static void lcore_main (rte_mempool *mbuf_pool)
             double Bps = nbytes / secs;
             std::cout << std::setprecision (4) << "t elapsed= " << secs
                       << " sec, TX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
-                      << " Gbps = " << Bps / 1e6 / 2 << " MSps" << std::endl;
+                      << " Gbps = " << Bps / 1e6 / 2 << " MSps " << payload_len()<<std::endl;
         }
         // break;
     }
@@ -234,6 +268,22 @@ int main (int argc, char *argv[])
     argc -= ret;
     argv += ret;
 
+    std::cout << "argc:" << argc << std::endl;
+    for (int i = 0; i < argc; ++i) {
+        std::cout << argv[i] << std::endl;
+    }
+
+    if (argc < 1) {
+        std::cerr << "Usage: " << argv[0] << " <cfg file>" << std::endl;
+        exit (-1);
+    }
+
+    YAML::Node config = YAML::LoadFile(argv[1]);
+    
+    //std::cout<<"x="<<x[0]<<std::endl;
+    //SendCfg send_cfg{ { 192, 168, 10, 10 }, 3000, { 192, 168, 10, 11 }, 3001, { 0xec, 0x0d, 0x9a, 0x43, 0x2e, 0x4d } };
+    SendCfg send_cfg(config);
+
     /* Check that there is an even number of ports to send/receive on. */
     nb_ports = rte_eth_dev_count_avail ();
     if (nb_ports < 1) rte_exit (EXIT_FAILURE, "Error: number of ports must be >0 \n");
@@ -256,7 +306,7 @@ int main (int argc, char *argv[])
     if (rte_lcore_count () > 1) printf ("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
     /* Call lcore_main on the main core only. Called on single lcore. 8< */
-    lcore_main (mbuf_pool);
+    lcore_main (mbuf_pool, send_cfg);
     /* >8 End of called on single lcore. */
 
     /* clean up the EAL */

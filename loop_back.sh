@@ -18,7 +18,7 @@ tmux send-keys -t ${SESSION_NAME}.0 "./recv -l 0 -a 0000:04:00.1 --file-prefix=r
 
 tmux send-keys -t ${SESSION_NAME}.1 "export LD_LIBRARY_PATH=/home/jhgu/usr/lib/x86_64-linux-gnu/" C-M
 
-tmux send-keys -t ${SESSION_NAME}.1 "./send -l 4 -a 0000:04:00.0 --file-prefix=send1"
+tmux send-keys -t ${SESSION_NAME}.1 "./send -l 4 -a 0000:04:00.0 --file-prefix=send1 -- send_cfg0.yaml"
 
 #tmux attach -t ${SESSION_NAME}
 

@@ -8,6 +8,7 @@
 #include "config.h"
 
 struct Payload{
+    uint64_t head=0x5555aaaa12345678;
     uint64_t pkt_cnt=0;//8 8
     int64_t base_id=0;//8 16
     uint64_t port_id=0;//4 20
@@ -33,7 +34,9 @@ static constexpr size_t ip_pkt_len(){
 }
 
 static constexpr size_t ether_pkt_len(){
-    return sizeof(rte_ether_hdr)+ip_pkt_len();
+    auto result=sizeof(rte_ether_hdr)+ip_pkt_len();
+    assert(result<=MTU);
+    return result;
 }
 
 #endif
