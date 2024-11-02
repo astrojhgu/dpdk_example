@@ -18,6 +18,7 @@
 #include "yaml-cpp/yaml.h"
 
 #include "payload.h"
+#include <rte_mbuf_core.h>
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 
@@ -174,7 +175,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
     ether_hdr.dst_addr = { send_cfg.dst_mac[0], send_cfg.dst_mac[1], send_cfg.dst_mac[2],
                            send_cfg.dst_mac[3], send_cfg.dst_mac[4], send_cfg.dst_mac[5] };
     ether_hdr.ether_type = rte_cpu_to_be_16 (0x0800);
-
+    
     ipv4_hdr.ihl = 0x05;
     ipv4_hdr.version = 0x04; // IPV4
     ipv4_hdr.type_of_service = 100;
@@ -189,13 +190,15 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
     ipv4_hdr.dst_addr = rte_cpu_to_be_32 ((send_cfg.dst_ip[0] << 24) + (send_cfg.dst_ip[1] << 16) +
                                           (send_cfg.dst_ip[2] << 8) + send_cfg.dst_ip[3]);
 
-    ipv4_hdr.hdr_checksum = rte_ipv4_cksum (&ipv4_hdr); // Checksum will be offloaded to NIC; see below
+    ipv4_hdr.hdr_checksum = 0;
+    ipv4_hdr.hdr_checksum = rte_ipv4_cksum (&ipv4_hdr);
+    // ipv4_hdr.hdr_checksum = 0xd7e3;
 
     udp_hdr.src_port = rte_cpu_to_be_16 (send_cfg.src_port);
     udp_hdr.dst_port = rte_cpu_to_be_16 (send_cfg.dst_port);
     udp_hdr.dgram_len = rte_cpu_to_be_16 (udp_pkt_len ());
     udp_hdr.dgram_cksum = 0;
-    udp_hdr.dgram_cksum = rte_ipv4_udptcp_cksum (&ipv4_hdr, &udp_hdr);
+    // udp_hdr.dgram_cksum = rte_ipv4_udptcp_cksum (&ipv4_hdr, &udp_hdr);
 
 
     /* Main work of application loop. 8< */
@@ -223,6 +226,13 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
             // uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
 
             pack_data (bufs[i], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
+
+            char *ptr = rte_pktmbuf_mtod (bufs[i], char *);
+            auto udp_hdr1 = (rte_udp_hdr *)(ptr + sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr));
+            auto udp_offset = sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr);
+            // if (cnt%10000==0) std::cout<<udp_hdr1->dgram_cksum<<" "<<udp_hdr.dgram_cksum<<std::endl;
+            udp_hdr1->dgram_cksum = 0;
+            udp_hdr1->dgram_cksum = rte_ipv4_udptcp_cksum_mbuf (bufs[i], &ipv4_hdr, udp_offset);
             payload.pkt_cnt += 1;
         }
 
