@@ -176,11 +176,11 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
     
     ipv4_hdr.ihl = 0x05;
     ipv4_hdr.version = 0x04; // IPV4
-    ipv4_hdr.type_of_service = 100;
+    ipv4_hdr.type_of_service = 0;
     ipv4_hdr.total_length =
     rte_cpu_to_be_16 (static_cast<uint16_t> (ip_pkt_len ())); // size of IPV4 header and everything that follows
     ipv4_hdr.packet_id = 0;
-    ipv4_hdr.fragment_offset = 0;
+    ipv4_hdr.fragment_offset = 0x40;//don't fragment 0b0100_0000
     ipv4_hdr.time_to_live = IPDEFTTL; // default 64
     ipv4_hdr.next_proto_id = IPPROTO_UDP; // UDP packet follows
     ipv4_hdr.src_addr = rte_cpu_to_be_32 ((send_cfg.src_ip[0] << 24) + (send_cfg.src_ip[1] << 16) +
