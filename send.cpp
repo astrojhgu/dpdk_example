@@ -7,7 +7,7 @@
 #include <cinttypes>
 #include <iostream>
 #include <iomanip>
-#include <ctime>
+#include <chrono>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_cycles.h>
@@ -173,14 +173,14 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
     ether_hdr.dst_addr = { send_cfg.dst_mac[0], send_cfg.dst_mac[1], send_cfg.dst_mac[2],
                            send_cfg.dst_mac[3], send_cfg.dst_mac[4], send_cfg.dst_mac[5] };
     ether_hdr.ether_type = rte_cpu_to_be_16 (0x0800);
-    
+
     ipv4_hdr.ihl = 0x05;
     ipv4_hdr.version = 0x04; // IPV4
     ipv4_hdr.type_of_service = 0;
     ipv4_hdr.total_length =
     rte_cpu_to_be_16 (static_cast<uint16_t> (ip_pkt_len ())); // size of IPV4 header and everything that follows
     ipv4_hdr.packet_id = 0;
-    ipv4_hdr.fragment_offset = 0x40;//don't fragment 0b0100_0000
+    ipv4_hdr.fragment_offset = 0x40; // don't fragment 0b0100_0000
     ipv4_hdr.time_to_live = IPDEFTTL; // default 64
     ipv4_hdr.next_proto_id = IPPROTO_UDP; // UDP packet follows
     ipv4_hdr.src_addr = rte_cpu_to_be_32 ((send_cfg.src_ip[0] << 24) + (send_cfg.src_ip[1] << 16) +
@@ -189,8 +189,8 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
                                           (send_cfg.dst_ip[2] << 8) + send_cfg.dst_ip[3]);
 
     ipv4_hdr.hdr_checksum = 0;
-    ipv4_hdr.hdr_checksum = rte_ipv4_cksum (&ipv4_hdr);
-    // ipv4_hdr.hdr_checksum = 0xd7e3;
+    // ipv4_hdr.hdr_checksum = rte_ipv4_cksum (&ipv4_hdr);
+    //  ipv4_hdr.hdr_checksum = 0xd7e3;
 
     udp_hdr.src_port = rte_cpu_to_be_16 (send_cfg.src_port);
     udp_hdr.dst_port = rte_cpu_to_be_16 (send_cfg.dst_port);
@@ -201,7 +201,11 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
 
     /* Main work of application loop. 8< */
     // uint64_t cnt = 0;
-    std::time_t t0 = std::time (nullptr);
+    // std::time_t t0 = std::time (nullptr);
+    auto old_ms = std::chrono::duration_cast<std::chrono::milliseconds> (
+                  std::chrono::system_clock::now ().time_since_epoch ())
+                  .count ();
+    auto t0_ms = old_ms;
     uint64_t nbytes;
     for (int cnt = 0;; ++cnt) {
         /*
@@ -230,7 +234,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
             auto udp_offset = sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr);
             // if (cnt%10000==0) std::cout<<udp_hdr1->dgram_cksum<<" "<<udp_hdr.dgram_cksum<<std::endl;
             udp_hdr1->dgram_cksum = 0;
-            udp_hdr1->dgram_cksum = rte_ipv4_udptcp_cksum_mbuf (bufs[i], &ipv4_hdr, udp_offset);
+            // udp_hdr1->dgram_cksum = rte_ipv4_udptcp_cksum_mbuf (bufs[i], &ipv4_hdr, udp_offset);
             payload.pkt_cnt += 1;
         }
 
@@ -247,13 +251,20 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
         /* Free any unsent packets. */
         assert (nb_tx == BURST_SIZE);
 
-        if (cnt % 10000 == 0) {
-            double secs = std::difftime (time (nullptr), t0);
+
+        auto new_ms = std::chrono::duration_cast<std::chrono::milliseconds> (
+                      std::chrono::system_clock::now ().time_since_epoch ())
+                      .count ();
+
+        if (new_ms / 1000 != old_ms / 1000) {
+            // double secs = std::difftime (time (nullptr), t0);
+            double secs = (new_ms - t0_ms) / 1000;
             double Bps = nbytes / secs;
-            std::cout << std::setprecision (4) << "t elapsed= " << secs
+            std::cerr << std::setprecision (4) << "t elapsed= " << secs
                       << " sec, TX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
                       << " Gbps = " << Bps / 1e6 / 2 << " MSps " << payload_len () << std::endl;
         }
+        old_ms = new_ms;
         // break;
     }
     /* >8 End of loop. */

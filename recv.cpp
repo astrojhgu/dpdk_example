@@ -4,9 +4,9 @@
 
 #include "config.h"
 #include <cinttypes>
-#include <ctime>
 #include <cstdint>
 #include <cstdlib>
+#include <chrono>
 #include <iostream>
 #include <iomanip>
 #include <rte_cycles.h>
@@ -97,7 +97,7 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
             port, RTE_ETHER_ADDR_BYTES (&addr));
 
     /* Enable RX in promiscuous mode for the Ethernet device. */
-    //retval = rte_eth_promiscuous_enable (port);
+    // retval = rte_eth_promiscuous_enable (port);
     /* End of setting RX port in promiscuous mode. */
     if (retval != 0) return retval;
 
@@ -113,7 +113,7 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
 /* Basic forwarding application lcore. 8< */
 static __rte_noreturn void lcore_main ()
 {
-    uint16_t port=0;
+    uint16_t port = 0;
     /*
      * Check that the port is on the same NUMA node as the polling thread
      * for best performance.
@@ -128,8 +128,6 @@ static __rte_noreturn void lcore_main ()
     printf ("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id ());
 
     /* Main work of application loop. 8< */
-    uint64_t old_cnt = 0;
-    std::time_t t0 = std::time (nullptr);
 
     rte_ether_hdr *ether_hdr;
     rte_ipv4_hdr *ipv4_hdr;
@@ -139,6 +137,10 @@ static __rte_noreturn void lcore_main ()
     uint64_t nbytes = 0;
     uint64_t ndropped = 0;
     uint64_t npkts = 0;
+    auto old_ms =
+    chrono::duration_cast<chrono::milliseconds> (chrono::system_clock::now ().time_since_epoch ()).count ();
+    auto t0_ms = old_ms;
+    uint64_t old_cnt = 0;
     for (int i = 0;;) {
         /*
          * Receive packets on a port and forward them on the paired
@@ -163,41 +165,43 @@ static __rte_noreturn void lcore_main ()
                 unpack_data (bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
                 auto cnt = payload->pkt_cnt;
                 if (cnt == 0) {
-                    t0 = std::time (nullptr);
+                    t0_ms = chrono::duration_cast<chrono::milliseconds> (
+                            chrono::system_clock::now ().time_since_epoch ())
+                            .count ();
                     nbytes = 0;
                     npkts = 0;
                     ndropped = 0;
                 }
 
-
                 // std::cout << *pcnt << std::endl;
                 if (cnt > 0 && npkts > 0 && old_cnt + 1 != cnt) {
                     int64_t ndropped1 = cnt - old_cnt - 1;
-                    //std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt
-                    //          << " " << npkts << std::endl;
+                    // std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt
+                    //           << " " << npkts << std::endl;
                     ndropped += ndropped1;
                 }
 
-
-                if (cnt % 117187 == 0) {
-                    // std::cout << "." << std::endl;
-                    // double secs=double(clock()-t0)/double(CLOCKS_PER_SEC);
-                    double secs = std::difftime (time (nullptr), t0);
-                    double Bps = nbytes / secs;
-                    std::cout << std::setprecision (4) << "t elapsed= " << secs
-                              << " sec, RX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
-                              << " Gbps = " << Bps / 1e6 / 2 << " MSps, Dropped packet:" << ndropped
-                              << " dropping ratio < " << (ndropped + 1.0) / npkts 
-                              << " "<<show_hdr(ipv4_hdr, udp_hdr)
-                              << std::endl;
-                }
                 old_cnt = cnt;
                 npkts += 1;
                 nbytes += ether_pkt_len ();
             }
-
             rte_pktmbuf_free (bufs[buf]);
         }
+
+        auto new_ms =
+        chrono::duration_cast<chrono::milliseconds> (chrono::system_clock::now ().time_since_epoch ())
+        .count ();
+
+        if (new_ms / 1000 != old_ms / 1000) {
+            double secs = (new_ms - t0_ms) / 1000;
+            double Bps = nbytes / secs;
+            std::cout << std::setprecision (4) << "t elapsed= " << secs << " sec, RX speed: " << Bps / 1e9
+                      << " GBps = " << Bps * 8 / 1e9 << " Gbps = " << Bps / 1e6 / 2
+                      << " MSps, Dropped packet:" << ndropped << " dropping ratio < "
+                      << (ndropped + 1.0) / npkts << " " << show_hdr (ipv4_hdr, udp_hdr) << std::endl;
+        }
+
+        old_ms = new_ms;
     }
     /* >8 End of loop. */
 }
