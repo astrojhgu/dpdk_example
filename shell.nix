@@ -12,6 +12,7 @@ stdenv.mkDerivation {
     cmake
     libpcap
     pktgen
+    yaml-cpp.all
     (python3.withPackages (ps: with ps; [ pyelftools meson ninja ]))
   ];
 }
