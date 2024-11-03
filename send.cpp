@@ -83,8 +83,6 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
     }*/
     if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE) {
         port_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
-    } else {
-        rte_panic (" offload not supported");
     }
 
     port_conf.rxmode.mtu = MTU;
