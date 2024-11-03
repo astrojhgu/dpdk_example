@@ -256,7 +256,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
                       std::chrono::system_clock::now ().time_since_epoch ())
                       .count ();
 
-        if (new_ms / 1000 != old_ms / 1000) {
+        if (new_ms / 200 != old_ms / 200) {
             // double secs = std::difftime (time (nullptr), t0);
             double secs = (new_ms - t0_ms) / 1000;
             double Bps = nbytes / secs;
