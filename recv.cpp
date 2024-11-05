@@ -185,6 +185,9 @@ static __rte_noreturn void lcore_main ()
                 npkts += 1;
                 nbytes += ether_pkt_len ();
             }
+            else{
+                std::cerr<<bufs[buf]->pkt_len<<std::endl;
+            }
             rte_pktmbuf_free (bufs[buf]);
         }
 
@@ -192,7 +195,7 @@ static __rte_noreturn void lcore_main ()
         chrono::duration_cast<chrono::milliseconds> (chrono::system_clock::now ().time_since_epoch ())
         .count ();
 
-        if (new_ms / 200 != old_ms / 200) {
+        if (new_ms / 200 != old_ms / 200 && npkts >0 ) {
             double secs = (new_ms - t0_ms) / 1000;
             double Bps = nbytes / secs;
             std::cout << std::setprecision (4) << "t elapsed= " << secs << " sec, RX speed: " << Bps / 1e9

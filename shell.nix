@@ -10,9 +10,11 @@ stdenv.mkDerivation {
     dpdk
     numactl.all
     cmake
+    gdb
     libpcap
     pktgen
     yaml-cpp.all
     (python3.withPackages (ps: with ps; [ pyelftools meson ninja ]))
   ];
+  LD_LIBRARY_PATH="${dpdk.out}/lib";
 }
