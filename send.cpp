@@ -256,11 +256,11 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
                       std::chrono::system_clock::now ().time_since_epoch ())
                       .count ();
 
-        if (new_ms / 200 != old_ms / 200) {
+        if (new_ms / 200 != old_ms / 200 && nbytes > 0 && new_ms > t0_ms) {
             // double secs = std::difftime (time (nullptr), t0);
-            double secs = (new_ms - t0_ms) / 1000;
-            double Bps = nbytes / secs;
-            std::cerr << std::setprecision (4) << "t elapsed= " << secs
+            auto secs = (new_ms - t0_ms) / 1000;
+            double Bps = nbytes / double (new_ms - t0_ms) * 1000;
+            std::cerr << std::setprecision (4) << (cnt % 2 == 0 ? "+ " : "- ") << "t elapsed= " << secs
                       << " sec, TX speed: " << Bps / 1e9 << " GBps = " << Bps * 8 / 1e9
                       << " Gbps = " << Bps / 1e6 / 2 << " MSps " << payload_len () << std::endl;
         }

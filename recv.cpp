@@ -184,9 +184,8 @@ static __rte_noreturn void lcore_main ()
                 old_cnt = cnt;
                 npkts += 1;
                 nbytes += ether_pkt_len ();
-            }
-            else{
-                std::cerr<<bufs[buf]->pkt_len<<std::endl;
+            } else {
+                std::cerr << bufs[buf]->pkt_len << std::endl;
             }
             rte_pktmbuf_free (bufs[buf]);
         }
@@ -195,10 +194,10 @@ static __rte_noreturn void lcore_main ()
         chrono::duration_cast<chrono::milliseconds> (chrono::system_clock::now ().time_since_epoch ())
         .count ();
 
-        if (new_ms / 200 != old_ms / 200 && npkts >0 ) {
-            double secs = (new_ms - t0_ms) / 1000;
-            double Bps = nbytes / secs;
-            std::cout << std::setprecision (4) << "t elapsed= " << secs << " sec, RX speed: " << Bps / 1e9
+        if (new_ms / 200 != old_ms / 200 && npkts > 0 && new_ms > t0_ms) {
+            int64_t secs = (new_ms - t0_ms) / 1000;
+            double Bps = nbytes / (new_ms - t0_ms) * 1000.0;
+            std::cout << (i%2 ==0 ? "+ ":"- ")<<std::setprecision (4) << "t elapsed= " << secs << " sec, RX speed: " << Bps / 1e9
                       << " GBps = " << Bps * 8 / 1e9 << " Gbps = " << Bps / 1e6 / 2
                       << " MSps, Dropped packet:" << ndropped << " dropping ratio < "
                       << (ndropped + 1.0) / npkts << " " << show_hdr (ipv4_hdr, udp_hdr) << std::endl;
