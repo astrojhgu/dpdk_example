@@ -206,7 +206,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
                   std::chrono::system_clock::now ().time_since_epoch ())
                   .count ();
     auto t0_ms = old_ms;
-    uint64_t nbytes;
+    uint64_t nbytes = 0;
     for (int cnt = 0;; ++cnt) {
         /*
          * Receive packets on a port and forward them on the paired
