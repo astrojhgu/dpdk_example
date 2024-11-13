@@ -159,10 +159,13 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
     rte_ether_hdr ether_hdr;
     rte_ipv4_hdr ipv4_hdr;
     rte_udp_hdr udp_hdr;
-    Payload payload;
+    std::vector<Payload> payloads(BURST_SIZE);
 
-    for (int i = 0; i < N_PT_PER_FRAME; ++i) {
-        payload.data[i] = i;
+    for (int i=0;i<BURST_SIZE;++i){
+        for (int j = 0; j < N_PT_PER_FRAME; ++j) {
+            payloads[i].data[j] = j;
+        }
+        payloads[i].pkt_cnt=i;
     }
 
     if (rte_eth_macaddr_get (port, &(ether_hdr.src_addr))) {
@@ -222,12 +225,13 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
             std::cerr << "alloc err" << std::endl;
         }
 
+#pragma omp parallel for
         for (int i = 0; i < BURST_SIZE; ++i) {
             bufs[i]->pkt_len = ether_pkt_len ();
             bufs[i]->data_len = ether_pkt_len ();
             // uint64_t *pcnt = rte_pktmbuf_mtod (bufs[i], uint64_t *);
 
-            pack_data (bufs[i], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
+            pack_data (bufs[i], &ether_hdr, &ipv4_hdr, &udp_hdr, &payloads[i]);
 
             char *ptr = rte_pktmbuf_mtod (bufs[i], char *);
             auto udp_hdr1 = (rte_udp_hdr *)(ptr + sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr));
@@ -235,7 +239,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
             // if (cnt%10000==0) std::cout<<udp_hdr1->dgram_cksum<<" "<<udp_hdr.dgram_cksum<<std::endl;
             udp_hdr1->dgram_cksum = 0;
             // udp_hdr1->dgram_cksum = rte_ipv4_udptcp_cksum_mbuf (bufs[i], &ipv4_hdr, udp_offset);
-            payload.pkt_cnt += 1;
+            payloads[i].pkt_cnt += BURST_SIZE;
         }
 
 

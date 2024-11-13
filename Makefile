@@ -10,10 +10,10 @@ payload.o: payload.cpp config.h  payload.h  utils.h
 	g++ -c $< -o $@ $(DPDK_INC) $(OPT)
 
 send.o: send.cpp config.h  payload.h  utils.h
-	g++ -c $< -o $@ $(DPDK_INC) $(OPT)
+	g++ -c $< -o $@ $(DPDK_INC) $(OPT) -fopenmp
 
 send: send.o payload.o 
-	g++ $^ -o $@ $(DPDK_LIB) $(YAML_LIB) $(OPT)
+	g++ $^ -o $@ $(DPDK_LIB) $(YAML_LIB) $(OPT) -fopenmp
 
 recv.o: recv.cpp config.h  payload.h  utils.h
 	g++ -c $< -o $@ $(DPDK_INC) $(OPT)
