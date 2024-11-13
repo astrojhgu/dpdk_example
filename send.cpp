@@ -189,7 +189,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
                                           (send_cfg.dst_ip[2] << 8) + send_cfg.dst_ip[3]);
 
     ipv4_hdr.hdr_checksum = 0;
-    // ipv4_hdr.hdr_checksum = rte_ipv4_cksum (&ipv4_hdr);
+    ipv4_hdr.hdr_checksum = rte_ipv4_cksum (&ipv4_hdr);
     //  ipv4_hdr.hdr_checksum = 0xd7e3;
 
     udp_hdr.src_port = rte_cpu_to_be_16 (send_cfg.src_port);
@@ -234,7 +234,7 @@ static void lcore_main (rte_mempool *mbuf_pool, SendCfg send_cfg)
             auto udp_offset = sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr);
             // if (cnt%10000==0) std::cout<<udp_hdr1->dgram_cksum<<" "<<udp_hdr.dgram_cksum<<std::endl;
             udp_hdr1->dgram_cksum = 0;
-            // udp_hdr1->dgram_cksum = rte_ipv4_udptcp_cksum_mbuf (bufs[i], &ipv4_hdr, udp_offset);
+            udp_hdr1->dgram_cksum = rte_ipv4_udptcp_cksum_mbuf (bufs[i], &ipv4_hdr, udp_offset);
             payload.pkt_cnt += 1;
         }
 
