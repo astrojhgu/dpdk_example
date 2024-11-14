@@ -1,4 +1,5 @@
 #include "payload.h"
+#include <cstring>
 
 void unpack_data (const rte_mbuf *buf, rte_ether_hdr **ether_hdr, rte_ipv4_hdr **ipv4_hdr, rte_udp_hdr **udp_hdr, Payload **payload)
 {
@@ -22,5 +23,6 @@ void pack_data (rte_mbuf *buf, rte_ether_hdr *ether_hdr, rte_ipv4_hdr *ipv4_hdr,
     if (udp_hdr) {
         *(rte_udp_hdr *)(ptr + sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr)) = *udp_hdr;
     }
-    *(Payload *)(ptr + sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr) + sizeof (rte_udp_hdr)) = *payload;
+    //*(Payload *)(ptr + sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr) + sizeof (rte_udp_hdr)) = *payload;
+    std::memcpy((void*)(ptr + sizeof (rte_ether_hdr) + sizeof (rte_ipv4_hdr) + sizeof (rte_udp_hdr)), (void*)payload, sizeof(Payload));
 }
