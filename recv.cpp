@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <chrono>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <rte_cycles.h>
 #include <rte_eal.h>
@@ -111,7 +112,7 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
  */
 
 /* Basic forwarding application lcore. 8< */
-static __rte_noreturn void lcore_main ()
+static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
 {
     uint16_t port = 0;
     /*
@@ -141,6 +142,9 @@ static __rte_noreturn void lcore_main ()
     chrono::duration_cast<chrono::milliseconds> (chrono::system_clock::now ().time_since_epoch ()).count ();
     auto t0_ms = old_ms;
     uint64_t old_cnt = 0;
+
+    std::ofstream ofs;
+    
     for (int i = 0;;) {
         /*
          * Receive packets on a port and forward them on the paired
@@ -160,7 +164,6 @@ static __rte_noreturn void lcore_main ()
         /* Free any unsent packets. */
         // std::cout<<bufs[0]->pkt_len<<std::endl;
         for (int buf = 0; buf < nb_rx; buf++) {
-
             if (bufs[buf]->pkt_len == ether_pkt_len ()) {
                 unpack_data (bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
                 auto cnt = payload->pkt_cnt;
@@ -171,6 +174,14 @@ static __rte_noreturn void lcore_main ()
                     nbytes = 0;
                     npkts = 0;
                     ndropped = 0;
+                    if (ofs.is_open()){
+                        ofs.close();
+                    }
+                    
+                    if (outname != nullptr && npkt_save >0 ){
+                        ofs.open(outname);
+                        std::cerr<<"dump file created"<<std::endl;
+                    }
                 }
 
                 // std::cout << *pcnt << std::endl;
@@ -184,6 +195,15 @@ static __rte_noreturn void lcore_main ()
                 old_cnt = cnt;
                 npkts += 1;
                 nbytes += ether_pkt_len ();
+
+                if (ofs.is_open()){
+                    ofs.write((char*)payload->data, N_PT_PER_FRAME*sizeof(int16_t));
+                    if ( npkts == npkt_save ){
+                        ofs.close();
+                        std::cerr<<"dump file saved"<<std::endl;
+                    }
+                }
+
             } else {
                 std::cerr << bufs[buf]->pkt_len << std::endl;
             }
@@ -226,11 +246,26 @@ int main (int argc, char *argv[])
 
     argc -= ret;
     argv += ret;
-    std::cout << "args" << std::endl;
+    std::cout << "argc=" <<argc << "args" << std::endl;
+
+
     for (int i = 0; i < argc; ++i) {
         std::cout << argv[i] << std::endl;
     }
 
+    int npkt_save=0;
+    char* outname=nullptr;
+
+    if (argc!=1 && argc!=3){
+        std::cout<<"Usage: " << argv[0] << "<save file> <npkts>"<<std::endl;
+        exit(0);
+    }
+
+    if (argc==3){
+        npkt_save=atoi(argv[2]);
+        outname=argv[1];
+    }
+    
     /* Check that there is an even number of ports to send/receive on. */
     nb_ports = 1;
 
@@ -253,7 +288,7 @@ int main (int argc, char *argv[])
     if (rte_lcore_count () > 1) printf ("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
     /* Call lcore_main on the main core only. Called on single lcore. 8< */
-    lcore_main ();
+    lcore_main (outname, npkt_save);
     /* >8 End of called on single lcore. */
 
     /* clean up the EAL */
