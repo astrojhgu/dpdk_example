@@ -168,6 +168,7 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
                 unpack_data (bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
                 auto cnt = payload->pkt_cnt;
                 if (cnt == 0) {
+                    std::cout<<"*******************"<<std::endl;
                     t0_ms = chrono::duration_cast<chrono::milliseconds> (
                             chrono::system_clock::now ().time_since_epoch ())
                             .count ();
@@ -220,7 +221,7 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
             std::cout << (i%2 ==0 ? "+ ":"- ")<<std::setprecision (4) << "t elapsed= " << secs << " sec, RX speed: " << Bps / 1e9
                       << " GBps = " << Bps * 8 / 1e9 << " Gbps = " << Bps / 1e6 / 2
                       << " MSps, Dropped packet:" << ndropped << " dropping ratio < "
-                      << (ndropped + 1.0) / npkts << " " << show_hdr (ipv4_hdr, udp_hdr) << std::endl;
+                      << (ndropped + 1.0) / npkts << " " << show_hdr (ether_hdr, ipv4_hdr, udp_hdr) <<" "<< old_cnt<< std::endl;
         }
 
         old_ms = new_ms;
