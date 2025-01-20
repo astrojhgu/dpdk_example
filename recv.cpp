@@ -98,7 +98,7 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
             port, RTE_ETHER_ADDR_BYTES (&addr));
 
     /* Enable RX in promiscuous mode for the Ethernet device. */
-    // retval = rte_eth_promiscuous_enable (port);
+    retval = rte_eth_promiscuous_enable (port);
     /* End of setting RX port in promiscuous mode. */
     if (retval != 0) return retval;
 
@@ -167,7 +167,8 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
             if (bufs[buf]->pkt_len == ether_pkt_len ()) {
                 unpack_data (bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
                 auto cnt = payload->pkt_cnt;
-                if (cnt == 0) {
+                if (cnt % 1000000 == 0) {
+                //if (cnt == 0) {
                     std::cout<<"*******************"<<std::endl;
                     t0_ms = chrono::duration_cast<chrono::milliseconds> (
                             chrono::system_clock::now ().time_since_epoch ())
@@ -195,7 +196,8 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
 
                 old_cnt = cnt;
                 npkts += 1;
-                nbytes += ether_pkt_len ();
+                //nbytes += ether_pkt_len ();
+                nbytes += N_PT_PER_FRAME * 2;
 
                 if (ofs.is_open()){
                     ofs.write((char*)payload->data, N_PT_PER_FRAME*sizeof(int16_t));
