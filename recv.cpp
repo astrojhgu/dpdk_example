@@ -98,7 +98,7 @@ static inline int port_init (uint16_t port, struct rte_mempool *mbuf_pool)
             port, RTE_ETHER_ADDR_BYTES (&addr));
 
     /* Enable RX in promiscuous mode for the Ethernet device. */
-    retval = rte_eth_promiscuous_enable (port);
+    //retval = rte_eth_promiscuous_enable (port);
     /* End of setting RX port in promiscuous mode. */
     if (retval != 0) return retval;
 
@@ -128,16 +128,20 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
 
     printf ("\nCore %u forwarding packets. [Ctrl+C to quit]\n", rte_lcore_id ());
 
+    struct rte_ether_addr local_ether_addr;
+    rte_eth_macaddr_get (port, &local_ether_addr);
+    
     /* Main work of application loop. 8< */
 
-    rte_ether_hdr *ether_hdr;
-    rte_ipv4_hdr *ipv4_hdr;
-    rte_udp_hdr *udp_hdr;
+    rte_ether_hdr *ether_hdr=nullptr;
+    rte_ipv4_hdr *ipv4_hdr=nullptr;
+    rte_udp_hdr *udp_hdr=nullptr;
     Payload *payload;
 
     uint64_t nbytes = 0;
     uint64_t ndropped = 0;
     uint64_t npkts = 0;
+    uint64_t npkts_recv_total = 0;
     auto old_ms =
     chrono::duration_cast<chrono::milliseconds> (chrono::system_clock::now ().time_since_epoch ()).count ();
     auto t0_ms = old_ms;
@@ -164,18 +168,26 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
         /* Free any unsent packets. */
         // std::cout<<bufs[0]->pkt_len<<std::endl;
         for (int buf = 0; buf < nb_rx; buf++) {
+
+            ether_hdr = rte_pktmbuf_mtod(bufs[buf], struct rte_ether_hdr *);
+
             if (bufs[buf]->pkt_len == ether_pkt_len ()) {
                 unpack_data (bufs[buf], &ether_hdr, &ipv4_hdr, &udp_hdr, &payload);
                 auto cnt = payload->pkt_cnt;
                 if (cnt % 1000000 == 0) {
                 //if (cnt == 0) {
                     std::cout<<"*******************"<<std::endl;
-                    t0_ms = chrono::duration_cast<chrono::milliseconds> (
+                    if (cnt==0)
+                    {
+                        t0_ms = chrono::duration_cast<chrono::milliseconds> (
                             chrono::system_clock::now ().time_since_epoch ())
                             .count ();
-                    nbytes = 0;
+                        nbytes = 0;
+                        npkts_recv_total = 0;
+                        ndropped = 0;
+                    }
+
                     npkts = 0;
-                    ndropped = 0;
                     if (ofs.is_open()){
                         ofs.close();
                     }
@@ -187,7 +199,7 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
                 }
 
                 // std::cout << *pcnt << std::endl;
-                if (cnt > 0 && npkts > 0 && old_cnt + 1 != cnt) {
+                if (cnt > 0 && npkts_recv_total > 0 && old_cnt + 1 != cnt) {
                     int64_t ndropped1 = cnt - old_cnt - 1;
                     // std::cerr << "dropped " << ndropped1 << " packets " << cnt << " " << old_cnt
                     //           << " " << npkts << std::endl;
@@ -196,6 +208,7 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
 
                 old_cnt = cnt;
                 npkts += 1;
+                npkts_recv_total += 1; 
                 //nbytes += ether_pkt_len ();
                 nbytes += N_PT_PER_FRAME * 2;
 
@@ -207,9 +220,60 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
                     }
                 }
 
-            } else {
+            }
+#if 1            
+             else if(ether_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP) && ipv4_hdr!=nullptr){
+                std::cerr<<"arp replied"<<std::endl;
+                
+                /* ARP header */
+                rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(ether_hdr + 1);
+
+                arp_hdr->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
+                /* Switch src and dst data and set NIC MAC */
+                rte_ether_addr_copy(&ether_hdr->src_addr, &ether_hdr->dst_addr);//d_addr to dst_addr
+                rte_ether_addr_copy(&local_ether_addr, &ether_hdr->src_addr);//s_addr to src_addr
+                
+
+                /* arp data */
+                rte_ether_addr_copy(&arp_hdr->arp_data.arp_sha, &arp_hdr->arp_data.arp_tha);
+                arp_hdr->arp_data.arp_tip = arp_hdr->arp_data.arp_sip;
+                
+                rte_ether_addr_copy(&local_ether_addr, &arp_hdr->arp_data.arp_sha);
+                arp_hdr->arp_data.arp_sip = ipv4_hdr->dst_addr;
+                rte_eth_tx_burst(port, 0, &bufs[buf], 1);
+            
+            }
+#endif
+            else {
                 std::cerr << bufs[buf]->pkt_len << std::endl;
             }
+
+#if 0            
+
+            if (i % 100000 == 0 && ipv4_hdr!=nullptr){
+                rte_ether_addr_copy(&local_ether_addr, &ether_hdr->src_addr);
+                rte_ether_addr rte_ether_broadcast={0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+                ether_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP);
+                rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(ether_hdr + 1);
+                arp_hdr->arp_hardware = rte_cpu_to_be_16(RTE_ARP_HRD_ETHER);
+                arp_hdr->arp_protocol = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+                arp_hdr->arp_hlen = RTE_ETHER_ADDR_LEN;
+                arp_hdr->arp_plen = 4;
+                arp_hdr->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REQUEST);
+                rte_ether_addr_copy(&local_ether_addr, &arp_hdr->arp_data.arp_sha);
+                arp_hdr->arp_data.arp_sip = ipv4_hdr->dst_addr;
+                rte_ether_addr_copy(&rte_ether_broadcast, &arp_hdr->arp_data.arp_tha);
+                arp_hdr->arp_data.arp_tip = ipv4_hdr->dst_addr;
+                bufs[buf]->data_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_arp_hdr);
+                bufs[buf]->pkt_len = bufs[buf]->data_len;
+                int16_t nb_tx = rte_eth_tx_burst(port, 0, &bufs[buf], 1);
+                if (nb_tx < 1) {
+                    std::cerr<<"Failed to send ARP packet"<<std::endl;
+                } else {
+                    std::cerr<<"Gratuitous ARP sent successfully"<<std::endl;;
+                }
+            }
+#endif
             rte_pktmbuf_free (bufs[buf]);
         }
 
@@ -217,13 +281,13 @@ static __rte_noreturn void lcore_main (const char* outname, size_t npkt_save)
         chrono::duration_cast<chrono::milliseconds> (chrono::system_clock::now ().time_since_epoch ())
         .count ();
 
-        if (new_ms / 200 != old_ms / 200 && npkts > 0 && new_ms > t0_ms) {
+        if (new_ms / 200 != old_ms / 200 && npkts_recv_total > 0 && new_ms > t0_ms) {
             int64_t secs = (new_ms - t0_ms) / 1000;
             double Bps = nbytes / (new_ms - t0_ms) * 1000.0;
             std::cout << (i%2 ==0 ? "+ ":"- ")<<std::setprecision (4) << "t elapsed= " << secs << " sec, RX speed: " << Bps / 1e9
                       << " GBps = " << Bps * 8 / 1e9 << " Gbps = " << Bps / 1e6 / 2
                       << " MSps, Dropped packet:" << ndropped << " dropping ratio < "
-                      << (ndropped + 1.0) / npkts << " " << show_hdr (ether_hdr, ipv4_hdr, udp_hdr) <<" "<< old_cnt<< std::endl;
+                      << (ndropped + 1.0) / npkts_recv_total << " " << show_hdr (ether_hdr, ipv4_hdr, udp_hdr) <<" "<< old_cnt<< std::endl;
         }
 
         old_ms = new_ms;
